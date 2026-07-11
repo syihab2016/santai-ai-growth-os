@@ -3,39 +3,58 @@ if (!defined('ABSPATH')) exit;
 
 define('SMOS_FACEBOOK_GRAPH_VERSION', 'v25.0');
 
+/**
+ * Return connected Facebook Pages in the format consumed by Campaigns.
+ * New storage is smos_facebook_connected_pages. Legacy single-page settings
+ * remain as a fallback so the baseline can be upgraded safely.
+ */
 function smos_facebook_get_pages()
 {
+    $stored = get_option('smos_facebook_connected_pages', array());
     $pages = array();
 
-    for ($i = 1; $i <= 3; $i++) {
-        $name = trim((string) get_option('smos_facebook_page_' . $i . '_name', ''));
-        $page_id = trim((string) get_option('smos_facebook_page_' . $i . '_id', ''));
-        $token = trim((string) get_option('smos_facebook_page_' . $i . '_access_token', ''));
+    if (is_array($stored)) {
+        foreach ($stored as $page) {
+            $page_id = trim((string) ($page['page_id'] ?? ''));
+            $name = trim((string) ($page['name'] ?? ''));
+            $token = trim((string) ($page['token'] ?? ''));
 
-        if ($i === 1 && (!$page_id || !$token)) {
-            $page_id = trim((string) get_option('smos_facebook_page_id', ''));
-            $token = trim((string) get_option('smos_facebook_page_access_token', ''));
-            $name = $name ?: trim((string) get_option('smos_facebook_page_name', ''));
-        }
+            if (!$page_id || !$token) continue;
 
-        if ($page_id && $token) {
-            $pages['page_' . $i] = array(
-                'label' => $name ?: ('Page ' . $i),
+            $key = 'fb_' . preg_replace('/[^0-9A-Za-z_-]/', '', $page_id);
+            $pages[$key] = array(
+                'label' => $name ?: ('Facebook Page ' . $page_id),
                 'page_id' => $page_id,
                 'token' => $token,
             );
         }
     }
 
+    if (!empty($pages)) return $pages;
+
+    // Legacy v1.0.4 fallback.
+    $page_id = trim((string) get_option('smos_facebook_page_id', ''));
+    $token = trim((string) get_option('smos_facebook_page_access_token', ''));
+    $name = trim((string) get_option('smos_facebook_page_name', ''));
+
+    if ($page_id && $token) {
+        $pages['page_1'] = array(
+            'label' => $name ?: 'Facebook Page',
+            'page_id' => $page_id,
+            'token' => $token,
+        );
+    }
+
     return $pages;
 }
 
-function smos_facebook_get_page_config($page_key = 'page_1')
+function smos_facebook_get_page_config($page_key = '')
 {
     $pages = smos_facebook_get_pages();
 
-    if (isset($pages[$page_key])) return $pages[$page_key];
+    if ($page_key && isset($pages[$page_key])) return $pages[$page_key];
     if (isset($pages['page_1'])) return $pages['page_1'];
+    if (!empty($pages)) return reset($pages);
 
     return null;
 }
@@ -137,7 +156,7 @@ function smos_facebook_schedule_fields($scheduled_timestamp = 0)
     );
 }
 
-function smos_facebook_post_to_page($message, $page_key = 'page_1', $scheduled_timestamp = 0)
+function smos_facebook_post_to_page($message, $page_key = '', $scheduled_timestamp = 0)
 {
     $validation = smos_facebook_validate_schedule_time($scheduled_timestamp);
     if (is_wp_error($validation)) return $validation;
@@ -154,7 +173,7 @@ function smos_facebook_post_to_page($message, $page_key = 'page_1', $scheduled_t
     );
 }
 
-function smos_facebook_post_photo_to_page($message, $image_url, $page_key = 'page_1', $scheduled_timestamp = 0)
+function smos_facebook_post_photo_to_page($message, $image_url, $page_key = '', $scheduled_timestamp = 0)
 {
     $validation = smos_facebook_validate_schedule_time($scheduled_timestamp);
     if (is_wp_error($validation)) return $validation;
@@ -175,7 +194,7 @@ function smos_facebook_post_photo_to_page($message, $image_url, $page_key = 'pag
     );
 }
 
-function smos_facebook_post_video_to_page($message, $video_url, $page_key = 'page_1', $scheduled_timestamp = 0)
+function smos_facebook_post_video_to_page($message, $video_url, $page_key = '', $scheduled_timestamp = 0)
 {
     $validation = smos_facebook_validate_schedule_time($scheduled_timestamp);
     if (is_wp_error($validation)) return $validation;
