@@ -1,0 +1,100 @@
+.smos-wrap .smos-card{
+    background:#fff;
+    padding:20px;
+    border:1px solid #dcdcde;
+    border-radius:10px;
+    margin:18px 0;
+    max-width:1050px;
+}
+.smos-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+}
+.smos-card label{
+    display:block;
+    font-weight:600;
+    margin:14px 0 6px;
+}
+.smos-card input,
+.smos-card select,
+.smos-card textarea{
+    width:100%;
+    max-width:100%;
+}
+.smos-platforms{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin:8px 0 18px;
+}
+.smos-check{
+    background:#f6f7f7;
+    border:1px solid #dcdcde;
+    padding:10px 12px;
+    border-radius:8px;
+    display:inline-flex!important;
+    align-items:center;
+    gap:6px;
+    width:auto!important;
+    margin:0!important;
+}
+.smos-check input{width:auto!important;}
+@media(max-width:800px){
+    .smos-grid{grid-template-columns:1fr;}
+}
+
+.smos-stats{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(140px, 1fr));
+    gap:14px;
+}
+.smos-stat{
+    background:#f6f7f7;
+    border:1px solid #dcdcde;
+    padding:16px;
+    border-radius:10px;
+}
+.smos-stat strong{
+    display:block;
+    font-size:28px;
+    line-height:1.2;
+}
+.smos-stat span{
+    color:#646970;
+}
+.smos-progress{
+    width:100%;
+    height:8px;
+    background:#dcdcde;
+    border-radius:10px;
+    overflow:hidden;
+    margin-bottom:6px;
+}
+.smos-progress span{
+    display:block;
+    height:8px;
+    background:#2271b1;
+}
+.smos-status{
+    display:inline-block;
+    padding:4px 8px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:600;
+}
+.smos-status-ready{
+    background:#edfaef;
+    color:#008a20;
+}
+.smos-status-warning{
+    background:#fff8e5;
+    color:#996800;
+}
+.smos-status-danger{
+    background:#fcf0f1;
+    color:#b32d2e;
+}
+@media(max-width:800px){
+    .smos-stats{grid-template-columns:1fr;}
+}
