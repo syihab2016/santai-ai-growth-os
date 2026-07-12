@@ -17,6 +17,19 @@ function smos_facebook_stable_page()
     $notice = '';
     $error = '';
 
+    if (isset($_POST['smos_save_facebook_oauth_settings'])) {
+        check_admin_referer('smos_facebook_oauth_settings_nonce');
+
+        update_option('smos_facebook_app_id', sanitize_text_field($_POST['smos_facebook_app_id'] ?? ''), false);
+        update_option('smos_facebook_configuration_id', sanitize_text_field($_POST['smos_facebook_configuration_id'] ?? ''), false);
+        update_option('smos_facebook_oauth_redirect_uri', esc_url_raw($_POST['smos_facebook_oauth_redirect_uri'] ?? ''), false);
+
+        $secret = trim((string) ($_POST['smos_facebook_app_secret'] ?? ''));
+        if ($secret !== '') update_option('smos_facebook_app_secret', sanitize_text_field($secret), false);
+
+        $notice = 'Facebook OAuth settings telah disimpan.';
+    }
+
     if (isset($_POST['smos_discover_facebook_pages'])) {
         check_admin_referer('smos_facebook_discovery_nonce');
 
@@ -92,6 +105,11 @@ function smos_facebook_stable_page()
     if (!is_array($connected_pages)) $connected_pages = array();
 
     $user_token_exists = (bool) get_option('smos_facebook_user_access_token', '');
+    $facebook_oauth_config = smos_facebook_oauth_get_config();
+    $facebook_oauth_connected_at = get_option('smos_facebook_connected_at', '');
+    $facebook_granted_permissions = get_option('smos_facebook_granted_permissions', array());
+    $facebook_missing_permissions = get_option('smos_facebook_missing_permissions', array());
+    $facebook_token_expires_at = intval(get_option('smos_facebook_user_token_expires_at', 0));
     $logs = get_option('smos_facebook_logs', array());
 
     include SMOS_PATH . 'templates/facebook-stable.php';

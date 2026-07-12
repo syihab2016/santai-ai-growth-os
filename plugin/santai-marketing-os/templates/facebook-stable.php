@@ -13,7 +13,65 @@
     ?>
 
     <div class="smos-card">
-        <h2>Discover My Pages</h2>
+        <h2>Facebook OAuth Login</h2>
+        <p>Sambungkan Facebook melalui aliran OAuth rasmi. Selepas login, sistem akan menyemak permission dan menemui semua Facebook Page secara automatik.</p>
+
+        <form method="post">
+            <?php wp_nonce_field('smos_facebook_oauth_settings_nonce'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">App ID</th>
+                    <td><input type="text" name="smos_facebook_app_id" value="<?php echo esc_attr($facebook_oauth_config['app_id']); ?>" class="regular-text"></td>
+                </tr>
+                <tr>
+                    <th scope="row">App Secret</th>
+                    <td>
+                        <input type="password" name="smos_facebook_app_secret" value="" class="regular-text" autocomplete="new-password">
+                        <p class="description"><?php echo $facebook_oauth_config['app_secret'] ? 'App Secret sudah disimpan. Biarkan kosong untuk kekalkan nilai sedia ada.' : 'Masukkan App Secret daripada Meta App Settings → Basic.'; ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Configuration ID</th>
+                    <td>
+                        <input type="text" name="smos_facebook_configuration_id" value="<?php echo esc_attr($facebook_oauth_config['configuration_id']); ?>" class="regular-text">
+                        <p class="description">Configuration Facebook Login for Business yang mengandungi pages_show_list, pages_read_engagement, pages_manage_posts dan business_management.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">OAuth Redirect URI</th>
+                    <td>
+                        <input type="url" name="smos_facebook_oauth_redirect_uri" value="<?php echo esc_attr($facebook_oauth_config['redirect_uri']); ?>" class="large-text">
+                        <p class="description">Salin URL ini tepat ke Meta App → Facebook Login for Business → Valid OAuth Redirect URIs. Untuk LocalWP gunakan HTTPS Live Link, bukan alamat <code>.local</code> biasa.</p>
+                    </td>
+                </tr>
+            </table>
+            <p><button type="submit" name="smos_save_facebook_oauth_settings" class="button button-secondary">Save OAuth Settings</button></p>
+        </form>
+
+        <hr>
+
+        <?php if ($user_token_exists) : ?>
+            <p><strong>Status:</strong> <span class="smos-status smos-status-ready">Connected</span></p>
+            <?php if ($facebook_oauth_connected_at) : ?><p><strong>Connected:</strong> <?php echo esc_html($facebook_oauth_connected_at); ?></p><?php endif; ?>
+            <?php if ($facebook_token_expires_at) : ?><p><strong>Token expiry:</strong> <?php echo esc_html(wp_date('Y-m-d H:i:s', $facebook_token_expires_at)); ?></p><?php endif; ?>
+            <?php if (!empty($facebook_granted_permissions)) : ?><p><strong>Granted:</strong> <?php echo esc_html(implode(', ', $facebook_granted_permissions)); ?></p><?php endif; ?>
+            <?php if (!empty($facebook_missing_permissions)) : ?><p style="color:#b32d2e;"><strong>Missing:</strong> <?php echo esc_html(implode(', ', $facebook_missing_permissions)); ?></p><?php endif; ?>
+        <?php else : ?>
+            <p><strong>Status:</strong> <span class="smos-status smos-status-warning">Not Connected</span></p>
+        <?php endif; ?>
+
+        <p>
+            <a class="button button-primary" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=smos_facebook_oauth_start'), 'smos_facebook_oauth_start')); ?>">Connect / Reconnect Facebook</a>
+            <?php if ($user_token_exists) : ?>
+                <a class="button" onclick="return confirm('Putuskan Facebook dan buang semua Page tersimpan?');" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=smos_facebook_oauth_disconnect'), 'smos_facebook_oauth_disconnect')); ?>">Disconnect</a>
+            <?php endif; ?>
+        </p>
+    </div>
+
+    <div class="smos-card">
+        <h2>Manual Token Fallback</h2>
+        <p>Gunakan bahagian ini hanya untuk debugging. Workflow utama ialah butang <strong>Connect / Reconnect Facebook</strong> di atas.</p>
+
         <p>Masukkan satu <strong>User Access Token</strong>. Sistem akan mendapatkan semua Facebook Page dan Page Access Token melalui <code>/me/accounts</code>.</p>
 
         <form method="post">

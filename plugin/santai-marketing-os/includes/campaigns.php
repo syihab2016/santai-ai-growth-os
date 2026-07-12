@@ -65,17 +65,31 @@ function smos_campaign_builder_box($post)
     }
     echo '</div>';
 
-    $fb_page_key = get_post_meta($post->ID, '_smos_campaign_facebook_page_key', true) ?: 'page_1';
-    $fb_pages = function_exists('smos_facebook_get_pages') ? smos_facebook_get_pages() : array();
-    echo '<p><label><strong>Facebook Target Page</strong></label><select name="smos_campaign_facebook_page_key" style="width:100%;">';
-    if (empty($fb_pages)) {
-        echo '<option value="page_1">Page 1 (isi di Settings)</option>';
-    } else {
-        foreach ($fb_pages as $key => $page) {
-            echo '<option value="' . esc_attr($key) . '" ' . selected($fb_page_key, $key, false) . '>' . esc_html($page['label'] . ' — ' . $page['page_id']) . '</option>';
-        }
+    $fb_page_keys = get_post_meta($post->ID, '_smos_campaign_facebook_page_keys', true);
+    if (!is_array($fb_page_keys) || empty($fb_page_keys)) {
+        $legacy_page_key = get_post_meta($post->ID, '_smos_campaign_facebook_page_key', true);
+        $fb_page_keys = $legacy_page_key ? array($legacy_page_key) : array();
     }
-    echo '</select></p>';
+
+    $fb_pages = function_exists('smos_facebook_get_pages') ? smos_facebook_get_pages() : array();
+    echo '<div class="smos-facebook-distribution">';
+    echo '<p><label><strong>Facebook Pages</strong></label></p>';
+
+    if (empty($fb_pages)) {
+        echo '<p class="description">Belum ada Facebook Page disimpan. Pergi ke Facebook Connector dan gunakan Discover My Pages.</p>';
+    } else {
+        echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-bottom:16px;">';
+        foreach ($fb_pages as $key => $page) {
+            $is_checked = in_array($key, $fb_page_keys, true);
+            echo '<label style="display:flex;align-items:flex-start;gap:10px;border:1px solid #dcdcde;border-radius:6px;padding:12px;background:#fff;">';
+            echo '<input type="checkbox" name="smos_campaign_facebook_page_keys[]" value="' . esc_attr($key) . '" ' . checked($is_checked, true, false) . '>';
+            echo '<span><strong>' . esc_html($page['label']) . '</strong><br><small>Page ID: ' . esc_html($page['page_id']) . '</small></span>';
+            echo '</label>';
+        }
+        echo '</div>';
+        echo '<p class="description">Pilih satu atau lebih Page. Post Now dan Schedule akan dihantar kepada semua Page yang dipilih.</p>';
+    }
+    echo '</div>';
 
     echo '<div class="smos-grid">';
     smos_campaign_select('Facebook Media Mode', 'smos_campaign_fb_media_mode', smos_campaign_fb_media_modes(), $fb_media_mode);
@@ -87,8 +101,8 @@ function smos_campaign_builder_box($post)
     echo '<p>';
     echo '<button type="submit" name="smos_generate_campaign" class="button button-primary button-hero">Generate Campaign Content</button> ';
     echo '<button type="submit" name="smos_approve_campaign" class="button">Approve Campaign</button> ';
-    echo '<button type="submit" name="smos_post_facebook_campaign" class="button button-secondary">Post Now to Facebook</button> ';
-    echo '<button type="submit" name="smos_schedule_facebook_campaign" class="button button-secondary">Schedule to Facebook</button>';
+    echo '<button type="submit" name="smos_post_facebook_campaign" class="button button-secondary">Post Now to Selected Pages</button> ';
+    echo '<button type="submit" name="smos_schedule_facebook_campaign" class="button button-secondary">Schedule Selected Pages</button>';
     echo '</p>';
 
     $status = get_post_meta($post->ID, '_smos_campaign_status', true) ?: 'draft';
@@ -104,6 +118,23 @@ function smos_campaign_builder_box($post)
     if ($fb_post_id) echo '<p style="color:#008a20;"><strong>Facebook Post ID:</strong> ' . esc_html($fb_post_id) . '</p>';
     if ($fb_scheduled_time) echo '<p style="color:#008a20;"><strong>Facebook Scheduled Time:</strong> ' . esc_html($fb_scheduled_time) . '</p>';
     if ($selected_media_url) echo '<p><strong>Selected Media:</strong> ' . esc_html($selected_media_type) . ' — <a href="' . esc_url($selected_media_url) . '" target="_blank">' . esc_html($selected_media_url) . '</a></p>';
+
+    $distribution_results = get_post_meta($post->ID, '_smos_facebook_distribution_results', true);
+    if (is_array($distribution_results) && !empty($distribution_results)) {
+        echo '<h3>Facebook Distribution Results</h3>';
+        echo '<table class="widefat striped"><thead><tr><th>Page</th><th>Status</th><th>Post ID / Error</th><th>Media</th><th>Time</th></tr></thead><tbody>';
+        foreach ($distribution_results as $row) {
+            $ok = (($row['status'] ?? '') === 'success');
+            echo '<tr>';
+            echo '<td>' . esc_html($row['page_name'] ?? '') . '</td>';
+            echo '<td><strong style="color:' . ($ok ? '#008a20' : '#b32d2e') . ';">' . esc_html($ok ? 'Success' : 'Failed') . '</strong></td>';
+            echo '<td>' . esc_html($ok ? ($row['post_id'] ?? '') : ($row['error'] ?? 'Unknown error')) . '</td>';
+            echo '<td>' . esc_html($row['media_type'] ?? 'text') . '</td>';
+            echo '<td>' . esc_html($row['time'] ?? '') . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+    }
 
     echo '</div>';
 
@@ -142,7 +173,10 @@ function smos_save_campaign_meta($post_id)
     update_post_meta($post_id, '_smos_campaign_cta_type', sanitize_text_field($_POST['smos_campaign_cta_type'] ?? 'website'));
     update_post_meta($post_id, '_smos_campaign_angle', sanitize_text_field($_POST['smos_campaign_angle'] ?? ''));
     update_post_meta($post_id, '_smos_campaign_platforms', array_map('sanitize_text_field', $_POST['smos_campaign_platforms'] ?? array()));
-    update_post_meta($post_id, '_smos_campaign_facebook_page_key', sanitize_text_field($_POST['smos_campaign_facebook_page_key'] ?? 'page_1'));
+    $facebook_page_keys = array_values(array_unique(array_map('sanitize_text_field', $_POST['smos_campaign_facebook_page_keys'] ?? array())));
+    update_post_meta($post_id, '_smos_campaign_facebook_page_keys', $facebook_page_keys);
+    // Keep the first selected Page in the legacy field for backward compatibility.
+    update_post_meta($post_id, '_smos_campaign_facebook_page_key', $facebook_page_keys[0] ?? '');
     update_post_meta($post_id, '_smos_campaign_fb_media_mode', sanitize_text_field($_POST['smos_campaign_fb_media_mode'] ?? 'auto_random'));
     update_post_meta($post_id, '_smos_campaign_fb_schedule_datetime', sanitize_text_field($_POST['smos_campaign_fb_schedule_datetime'] ?? ''));
 
@@ -259,9 +293,24 @@ function smos_campaign_post_to_facebook($campaign_id, $schedule = false)
         return;
     }
 
-    $fb_page_key = get_post_meta($campaign_id, '_smos_campaign_facebook_page_key', true) ?: 'page_1';
-    $scheduled_timestamp = 0;
+    $fb_page_keys = get_post_meta($campaign_id, '_smos_campaign_facebook_page_keys', true);
+    if (!is_array($fb_page_keys) || empty($fb_page_keys)) {
+        $legacy_page_key = get_post_meta($campaign_id, '_smos_campaign_facebook_page_key', true);
+        $fb_page_keys = $legacy_page_key ? array($legacy_page_key) : array();
+    }
 
+    $available_pages = function_exists('smos_facebook_get_pages') ? smos_facebook_get_pages() : array();
+    $fb_page_keys = array_values(array_filter($fb_page_keys, function ($key) use ($available_pages) {
+        return isset($available_pages[$key]);
+    }));
+
+    if (empty($fb_page_keys)) {
+        update_post_meta($campaign_id, '_smos_campaign_status', 'failed');
+        update_post_meta($campaign_id, '_smos_campaign_last_error', 'Sila pilih sekurang-kurangnya satu Facebook Page.');
+        return;
+    }
+
+    $scheduled_timestamp = 0;
     if ($schedule) {
         $scheduled_timestamp = smos_campaign_get_schedule_timestamp($campaign_id);
         if (is_wp_error($scheduled_timestamp)) {
@@ -274,34 +323,66 @@ function smos_campaign_post_to_facebook($campaign_id, $schedule = false)
         update_post_meta($campaign_id, '_smos_campaign_status', 'posting');
     }
 
-    $media = smos_campaign_resolve_random_media($campaign_id);
-    update_post_meta($campaign_id, '_smos_campaign_selected_media_type', $media['type']);
-    update_post_meta($campaign_id, '_smos_campaign_selected_media_url', $media['url']);
+    $results = array();
+    $success_count = 0;
+    $first_post_id = '';
+    $errors = array();
 
-    if ($media['type'] === 'image' && $media['url']) {
-        $result = smos_facebook_post_photo_to_page($outputs['facebook'], $media['url'], $fb_page_key, $scheduled_timestamp);
-    } elseif ($media['type'] === 'video' && $media['url']) {
-        $result = smos_facebook_post_video_to_page($outputs['facebook'], $media['url'], $fb_page_key, $scheduled_timestamp);
-    } else {
-        $result = smos_facebook_post_to_page($outputs['facebook'], $fb_page_key, $scheduled_timestamp);
+    foreach ($fb_page_keys as $fb_page_key) {
+        $page = $available_pages[$fb_page_key];
+        $media = smos_campaign_resolve_random_media($campaign_id);
+
+        if ($media['type'] === 'image' && $media['url']) {
+            $result = smos_facebook_post_photo_to_page($outputs['facebook'], $media['url'], $fb_page_key, $scheduled_timestamp);
+        } elseif ($media['type'] === 'video' && $media['url']) {
+            $result = smos_facebook_post_video_to_page($outputs['facebook'], $media['url'], $fb_page_key, $scheduled_timestamp);
+        } else {
+            $result = smos_facebook_post_to_page($outputs['facebook'], $fb_page_key, $scheduled_timestamp);
+        }
+
+        $row = array(
+            'page_key' => $fb_page_key,
+            'page_name' => $page['label'] ?? $fb_page_key,
+            'page_id' => $page['page_id'] ?? '',
+            'media_type' => $media['type'] ?? 'text',
+            'media_url' => $media['url'] ?? '',
+            'time' => $schedule ? wp_date('Y-m-d H:i:s', $scheduled_timestamp) : current_time('mysql'),
+        );
+
+        if (is_wp_error($result)) {
+            $row['status'] = 'failed';
+            $row['error'] = $result->get_error_message();
+            $errors[] = ($page['label'] ?? $fb_page_key) . ': ' . $result->get_error_message();
+        } else {
+            $post_id = isset($result['post_id']) ? $result['post_id'] : (isset($result['id']) ? $result['id'] : '');
+            $row['status'] = 'success';
+            $row['post_id'] = $post_id;
+            $success_count++;
+            if (!$first_post_id) $first_post_id = $post_id;
+        }
+
+        $results[] = $row;
     }
 
-    if (is_wp_error($result)) {
-        update_post_meta($campaign_id, '_smos_campaign_status', 'failed');
-        update_post_meta($campaign_id, '_smos_campaign_last_error', $result->get_error_message());
-        return;
-    }
+    update_post_meta($campaign_id, '_smos_facebook_distribution_results', $results);
+    update_post_meta($campaign_id, '_smos_facebook_post_id', $first_post_id);
 
-    if ($schedule) {
-        update_post_meta($campaign_id, '_smos_campaign_status', 'scheduled');
+    if ($schedule && $success_count > 0) {
         update_post_meta($campaign_id, '_smos_facebook_scheduled_time', wp_date('Y-m-d H:i:s', $scheduled_timestamp));
-    } else {
-        update_post_meta($campaign_id, '_smos_campaign_status', 'posted');
+    } elseif (!$schedule) {
         update_post_meta($campaign_id, '_smos_facebook_scheduled_time', '');
     }
 
-    update_post_meta($campaign_id, '_smos_facebook_post_id', isset($result['post_id']) ? $result['post_id'] : (isset($result['id']) ? $result['id'] : ''));
-    update_post_meta($campaign_id, '_smos_campaign_last_error', '');
+    if ($success_count === count($fb_page_keys)) {
+        update_post_meta($campaign_id, '_smos_campaign_status', $schedule ? 'scheduled' : 'posted');
+        update_post_meta($campaign_id, '_smos_campaign_last_error', '');
+    } elseif ($success_count > 0) {
+        update_post_meta($campaign_id, '_smos_campaign_status', 'partial_failed');
+        update_post_meta($campaign_id, '_smos_campaign_last_error', implode(' | ', $errors));
+    } else {
+        update_post_meta($campaign_id, '_smos_campaign_status', 'failed');
+        update_post_meta($campaign_id, '_smos_campaign_last_error', implode(' | ', $errors));
+    }
 }
 
 function smos_campaign_preview_box($campaign_id)

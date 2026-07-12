@@ -3,13 +3,13 @@
  * Plugin Name: Santai AI Growth OS
  * Plugin URI: https://marketing.bukusantaiilmu.com
  * Description: AI Growth Operating System untuk Santai Ilmu Publication.
- * Version: 1.1.0-dev.1
+ * Version: 1.1.0-dev.2
  * Author: Syihabudin Ahmad
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('SMOS_VERSION', '1.1.0-dev.1');
+define('SMOS_VERSION', '1.1.0-dev.2');
 define('SMOS_PATH', plugin_dir_path(__FILE__));
 define('SMOS_URL', plugin_dir_url(__FILE__));
 
@@ -22,6 +22,7 @@ require_once SMOS_PATH . 'includes/history.php';
 require_once SMOS_PATH . 'includes/campaigns.php';
 require_once SMOS_PATH . 'includes/openai.php';
 require_once SMOS_PATH . 'includes/facebook.php';
+require_once SMOS_PATH . 'includes/facebook-oauth.php';
 require_once SMOS_PATH . 'includes/facebook-stable.php';
 require_once SMOS_PATH . 'includes/prompt-builder.php';
 require_once SMOS_PATH . 'includes/copywriter.php';
