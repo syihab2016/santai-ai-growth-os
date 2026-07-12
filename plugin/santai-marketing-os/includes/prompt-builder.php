@@ -5,6 +5,7 @@ function smos_get_platforms()
 {
     return array(
         'facebook' => 'Facebook',
+        'threads' => 'Threads',
         'instagram' => 'Instagram',
         'whatsapp' => 'WhatsApp',
         'telegram' => 'Telegram',
@@ -71,6 +72,24 @@ function smos_build_prompt($args)
     $cta_url = $data['product_url'];
     if ($cta_type === 'whatsapp' && !empty($data['whatsapp_url'])) $cta_url = $data['whatsapp_url'];
 
+    $platform_instruction = '';
+    if ($platform === 'threads') {
+        $platform_instruction = "
+ARAHAN KHUSUS THREADS:
+- Maksimum 500 aksara termasuk ruang, emoji, hashtag dan pautan.
+- Gunakan ayat pendek dan line break yang natural.
+- Utamakan satu hook, satu idea utama dan satu CTA ringkas.
+- Elakkan gaya karangan panjang atau salinan Facebook.
+- Maksimum 2 hashtag jika benar-benar sesuai.
+- Pastikan output akhir tidak melebihi 500 aksara.
+";
+    } elseif ($platform === 'youtube_community') {
+        $platform_instruction = "
+ARAHAN KHUSUS YOUTUBE COMMUNITY:
+- Ringkas, mudah dibaca dan sesuai untuk Community Post.
+";
+    }
+
     return "Hasilkan satu marketing post untuk platform {$platform}.
 
 TEMPLATE: {$template} - " . ($template_rules[$template] ?? '') . "
@@ -124,5 +143,5 @@ ARAHAN PENULISAN:
 - Letakkan CTA dan link di hujung.
 - Jika Instagram, sertakan hashtag.
 - Jangan gunakan format markdown tebal (**).
-";
+{$platform_instruction}";
 }

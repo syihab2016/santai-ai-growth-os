@@ -42,7 +42,7 @@ function smos_campaign_builder_box($post)
     $fb_schedule_datetime = get_post_meta($post->ID, '_smos_campaign_fb_schedule_datetime', true);
     $selected_platforms = get_post_meta($post->ID, '_smos_campaign_platforms', true);
     if (!is_array($selected_platforms)) {
-        $selected_platforms = array('facebook','instagram','whatsapp','telegram','youtube_community');
+        $selected_platforms = array('facebook','threads','instagram','whatsapp','telegram','youtube_community');
     }
 
     echo '<div class="smos-card">';
@@ -100,6 +100,7 @@ function smos_campaign_builder_box($post)
 
     echo '<p>';
     echo '<button type="submit" name="smos_generate_campaign" class="button button-primary button-hero">Generate Campaign Content</button> ';
+    echo '<button type="submit" name="smos_generate_threads_campaign" class="button">Generate Threads Version</button> ';
     echo '<button type="submit" name="smos_approve_campaign" class="button">Approve Campaign</button> ';
     echo '<button type="submit" name="smos_post_facebook_campaign" class="button button-secondary">Post Now to Selected Pages</button> ';
     echo '<button type="submit" name="smos_schedule_facebook_campaign" class="button button-secondary">Schedule Selected Pages</button>';
@@ -184,6 +185,10 @@ function smos_save_campaign_meta($post_id)
         smos_generate_campaign_content($post_id);
     }
 
+    if (isset($_POST['smos_generate_threads_campaign'])) {
+        smos_generate_threads_content($post_id);
+    }
+
     if (isset($_POST['smos_approve_campaign'])) {
         update_post_meta($post_id, '_smos_campaign_status', 'approved');
     }
@@ -230,6 +235,9 @@ function smos_generate_campaign_content($campaign_id)
         if (is_wp_error($result)) {
             $outputs[$platform] = 'ERROR: ' . $result->get_error_message();
         } else {
+            if ($platform === 'threads') {
+                $result = smos_threads_limit_content($result, 500);
+            }
             $outputs[$platform] = $result;
             smos_save_generated_history($product_id, $platform, $template, $result);
         }
@@ -237,6 +245,74 @@ function smos_generate_campaign_content($campaign_id)
 
     update_post_meta($campaign_id, '_smos_campaign_outputs', $outputs);
     update_post_meta($campaign_id, '_smos_campaign_status', 'generated');
+}
+
+function smos_generate_threads_content($campaign_id)
+{
+    $product_id = intval(get_post_meta($campaign_id, '_smos_campaign_product_id', true));
+    if (!$product_id) {
+        update_post_meta($campaign_id, '_smos_campaign_last_error', 'Sila pilih produk sebelum menjana Threads.');
+        return;
+    }
+
+    $template = get_post_meta($campaign_id, '_smos_campaign_template', true) ?: 'soft_sell';
+    $emoji = get_post_meta($campaign_id, '_smos_campaign_emoji', true) ?: 'low';
+    $cta = get_post_meta($campaign_id, '_smos_campaign_cta_type', true) ?: 'website';
+    $angle = get_post_meta($campaign_id, '_smos_campaign_angle', true);
+    $product_data = smos_get_product_knowledge($product_id);
+
+    $prompt = smos_build_prompt(array(
+        'product' => $product_data,
+        'platform' => 'threads',
+        'template' => $template,
+        'length' => 'short',
+        'emoji' => $emoji,
+        'cta_type' => $cta,
+        'angle' => $angle,
+        'extra_instruction' => 'Hasilkan satu versi Threads yang berdiri sendiri dan maksimum 500 aksara.'
+    ));
+
+    $result = smos_call_openai($prompt);
+    if (is_wp_error($result)) {
+        update_post_meta($campaign_id, '_smos_campaign_status', 'failed');
+        update_post_meta($campaign_id, '_smos_campaign_last_error', $result->get_error_message());
+        return;
+    }
+
+    $result = smos_threads_limit_content($result, 500);
+    $outputs = get_post_meta($campaign_id, '_smos_campaign_outputs', true);
+    if (!is_array($outputs)) $outputs = array();
+    $outputs['threads'] = $result;
+
+    update_post_meta($campaign_id, '_smos_campaign_outputs', $outputs);
+    update_post_meta($campaign_id, '_smos_campaign_status', 'generated');
+    update_post_meta($campaign_id, '_smos_campaign_last_error', '');
+    smos_save_generated_history($product_id, 'threads', $template, $result);
+}
+
+function smos_threads_limit_content($content, $limit = 500)
+{
+    $content = trim(wp_strip_all_tags((string) $content));
+    if (function_exists('mb_strlen') && mb_strlen($content, 'UTF-8') <= $limit) return $content;
+    if (!function_exists('mb_strlen') && strlen($content) <= $limit) return $content;
+
+    $slice_limit = max(1, $limit - 1);
+    $short = function_exists('mb_substr')
+        ? mb_substr($content, 0, $slice_limit, 'UTF-8')
+        : substr($content, 0, $slice_limit);
+
+    $last_space = function_exists('mb_strrpos')
+        ? mb_strrpos($short, ' ', 0, 'UTF-8')
+        : strrpos($short, ' ');
+    if ($last_space !== false && $last_space > (int) ($limit * 0.75)) {
+        $short = function_exists('mb_substr')
+            ? mb_substr($short, 0, $last_space, 'UTF-8')
+            : substr($short, 0, $last_space);
+    }
+
+    return rtrim($short, " 	
+
+ ,.;:-") . '…';
 }
 
 function smos_campaign_get_schedule_timestamp($campaign_id)
@@ -397,9 +473,22 @@ function smos_campaign_preview_box($campaign_id)
     }
 
     foreach ($outputs as $platform=>$content) {
+        $textarea_id = 'smos-campaign-' . sanitize_html_class($platform);
         echo '<h3>' . esc_html(strtoupper(str_replace("_", " ", $platform))) . '</h3>';
-        echo '<textarea id="smos-campaign-' . esc_attr($platform) . '" rows="12" style="width:100%;">' . esc_textarea($content) . '</textarea>';
-        echo '<p><button type="button" class="button" onclick="smosCopyById(\'smos-campaign-' . esc_attr($platform) . '\')">Copy</button></p>';
+
+        if ($platform === 'threads') {
+            $content = smos_threads_limit_content($content, 500);
+            echo '<textarea id="' . esc_attr($textarea_id) . '" maxlength="500" rows="8" style="width:100%;" oninput="smosUpdateThreadsCount(this)">' . esc_textarea($content) . '</textarea>';
+            echo '<p><strong id="smos-threads-count">' . esc_html(function_exists('mb_strlen') ? mb_strlen($content, 'UTF-8') : strlen($content)) . '</strong> / 500 aksara</p>';
+            echo '<p>';
+            echo '<button type="button" class="button button-primary" onclick="smosCopyById(\'' . esc_js($textarea_id) . '\')">Copy Threads</button> ';
+            echo '<a class="button" href="https://www.threads.com/" target="_blank" rel="noopener noreferrer">Open Threads</a>';
+            echo '</p>';
+            echo '<script>function smosUpdateThreadsCount(el){var c=document.getElementById("smos-threads-count");if(c){c.textContent=Array.from(el.value).length;c.style.color=Array.from(el.value).length>500?"#b32d2e":"#1d2327";}}</script>';
+        } else {
+            echo '<textarea id="' . esc_attr($textarea_id) . '" rows="12" style="width:100%;">' . esc_textarea($content) . '</textarea>';
+            echo '<p><button type="button" class="button" onclick="smosCopyById(\'' . esc_js($textarea_id) . '\')">Copy</button></p>';
+        }
     }
 
     echo '</div>';
